@@ -1,0 +1,45 @@
+================================================================================
+SEGMENTATION MODEL EVALUATION REPORT (CROPPED DATASET)
+================================================================================
+
+Model: U-Net with EfficientNet-B0 encoder
+Dataset: Cropped YOLO Dataset
+Metrics Library: torchmetrics (optimized)
+Dice Metric: F1Score (mathematically equivalent)
+Number of test samples: 5179
+Number of classes: 9
+
+INFERENCE PERFORMANCE:
+--------------------------------------------------------------------------------
+Total inference time: 80.77 seconds
+Average batch time: 63.35 ms
+Throughput: 64.12 samples/second
+Latency per sample: 15.60 ms
+
+OVERALL METRICS:
+--------------------------------------------------------------------------------
+Mean Pixel Accuracy:     0.946230 ± 0.065951
+Mean Dice Score (macro): 0.252557
+Mean IoU Score (macro):  0.237322
+
+PER-CLASS METRICS:
+--------------------------------------------------------------------------------
+Class    Dice                 IoU                  Accuracy    
+--------------------------------------------------------------------------------
+0 (Bac) 0.9767±0.0281        0.9557±0.0475        0.9799      
+1 (C1) 0.1418±0.3295        0.1306±0.3068        0.1405      
+2 (C2) 0.2317±0.4011        0.2170±0.3798        0.2306      
+3 (C3) 0.1193±0.2974        0.1062±0.2715        0.1256      
+4 (C4) 0.1088±0.2798        0.0946±0.2519        0.1183      
+5 (C5) 0.0998±0.2678        0.0861±0.2397        0.1016      
+6 (C6) 0.1320±0.3085        0.1164±0.2780        0.1404      
+7 (C7) 0.1556±0.3371        0.1410±0.3105        0.1561      
+8 (Oth) 0.3073±0.4372        0.2883±0.4140        0.3021      
+
+================================================================================
+SUMMARY:
+================================================================================
+Best class (Dice):  Class 0 (0.9767)
+Worst class (Dice): Class 5 (0.0998)
+Best class (IoU):   Class 0 (0.9557)
+Worst class (IoU):  Class 5 (0.0861)

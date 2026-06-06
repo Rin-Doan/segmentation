@@ -1,0 +1,45 @@
+================================================================================
+3D U-NET SEGMENTATION MODEL EVALUATION REPORT
+================================================================================
+
+Model: MONAI 3D U-Net
+Framework: MONAI (Medical Open Network for AI)
+Metrics Library: torchmetrics (optimized)
+Dice Metric: F1Score (mathematically equivalent)
+Number of test volumes: 18
+Number of classes: 9 (0=background, 1-7=C1-C7, 8=other)
+
+INFERENCE PERFORMANCE:
+--------------------------------------------------------------------------------
+Total inference time: 70.54 seconds
+Average batch time: 53.07 ms
+Throughput: 0.26 volumes/second
+Latency per volume: 3918.96 ms
+
+OVERALL METRICS:
+--------------------------------------------------------------------------------
+Mean Pixel Accuracy:     0.987647 ± 0.004184
+Mean Dice Score (macro): 0.282594
+Mean IoU Score (macro):  0.225970
+
+PER-CLASS METRICS:
+--------------------------------------------------------------------------------
+Class    Dice                 IoU                  Accuracy    
+--------------------------------------------------------------------------------
+0        0.9947±0.0022        0.9895±0.0043        0.9986      
+1        0.1242±0.1855        0.0782±0.1214        0.0859      
+2        0.2921±0.2669        0.2032±0.2074        0.2730      
+3        0.2529±0.2793        0.1785±0.2122        0.2191      
+4        0.2013±0.2446        0.1357±0.1754        0.1555      
+5        0.2298±0.2604        0.1580±0.1928        0.2161      
+6        0.2032±0.2482        0.1379±0.1804        0.1776      
+7        0.1298±0.1686        0.0793±0.1103        0.0917      
+8        0.1154±0.1815        0.0735±0.1284        0.0969      
+
+================================================================================
+SUMMARY:
+================================================================================
+Best class (Dice):  Class 0 (0.9947)
+Worst class (Dice): Class 8 (0.1154)
+Best class (IoU):   Class 0 (0.9895)
+Worst class (IoU):  Class 8 (0.0735)

@@ -1,0 +1,44 @@
+================================================================================
+2.5D SEGMENTATION MODEL EVALUATION REPORT
+================================================================================
+
+Model: 2.5D U-Net with ResNet34 encoder
+Input: 3 channels (previous, current, next slices stacked)
+Classes: 0-7 (background + C1-C7), 8 (other vertebrae merged)
+Metrics Library: torchmetrics (optimized)
+Dice Metric: F1Score (mathematically equivalent)
+Number of test samples: 5418
+Number of classes: 9
+
+OVERALL METRICS:
+--------------------------------------------------------------------------------
+Mean Pixel Accuracy:     0.984248 ± 0.015396
+Mean Dice Score (macro): 0.199193
+Mean IoU Score (macro):  0.183013
+
+PER-CLASS METRICS:
+--------------------------------------------------------------------------------
+Class           Dice                 IoU                  Accuracy    
+--------------------------------------------------------------------------------
+0 (Background)  0.9939±0.0063        0.9880±0.0124        0.9920      
+1 (C1)          0.0913±0.2537        0.0767±0.2178        0.1089      
+2 (C2)          0.1537±0.3228        0.1330±0.2858        0.1664      
+3 (C3)          0.0604±0.1983        0.0479±0.1650        0.0702      
+4 (C4)          0.0634±0.2031        0.0504±0.1695        0.0785      
+5 (C5)          0.0575±0.1907        0.0449±0.1565        0.0570      
+6 (C6)          0.0839±0.2404        0.0694±0.2051        0.0922      
+7 (C7)          0.0898±0.2452        0.0734±0.2070        0.0872      
+8 (Other Vert.) 0.1988±0.3378        0.1634±0.2837        0.2550      
+
+================================================================================
+SUMMARY:
+================================================================================
+Mean Dice (all classes):        0.1992
+Mean Dice (vertebrae only):     0.0999
+Mean IoU (all classes):         0.1830
+Mean IoU (vertebrae only):      0.0824
+
+Best class (Dice):  Class 0 (Background) = 0.9939
+Worst class (Dice): Class 5 (C5) = 0.0575
+Best class (IoU):   Class 0 (Background) = 0.9880
+Worst class (IoU):  Class 5 (C5) = 0.0449

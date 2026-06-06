@@ -1,0 +1,2 @@
+n_on_disk,n_in_csv,n_on_disk_not_in_csv,n_in_csv_not_on_disk,n_csv_studies_on_disk,n_fracture_positive_on_disk,n_all_normal_on_disk,on_disk_cohort_definition,pct_studies_with_csv_row_of_on_disk,pct_fracture_positive_studies_of_on_disk
+2019,961,1058,0,961,961,0,segmentations ∪ training_images,47.597821,47.597821

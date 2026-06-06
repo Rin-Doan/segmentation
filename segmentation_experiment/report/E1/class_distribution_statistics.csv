@@ -1,0 +1,10 @@
+Class_ID,Class_Name,Pixel_Count,Percentage,Is_Background,Is_Vertebrae,Is_Other
+0,Background,7612718230,97.345855,True,False,False
+1,C1,19090373,0.244114,False,True,False
+2,C2,24076895,0.307878,False,True,False
+3,C3,16121890,0.206155,False,True,False
+4,C4,16285483,0.208247,False,True,False
+5,C5,17540628,0.224297,False,True,False
+6,C6,19312703,0.246957,False,True,False
+7,C7,24056935,0.307622,False,True,False
+8,Other Vertebrae,71076671,0.908876,False,False,True

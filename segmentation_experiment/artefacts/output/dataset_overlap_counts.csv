@@ -1,0 +1,6 @@
+metric,value
+n_training_dirs,2019
+n_segmentation_files,81
+n_intersection,81
+n_only_training,1938
+n_only_segmentation,0

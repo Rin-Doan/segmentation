@@ -1,0 +1,44 @@
+============================================================
+MONAI 3D U-Net Training Summary
+============================================================
+
+Model Architecture: MONAI 3D U-Net
+  - Framework: MONAI (Medical Open Network for AI)
+  - Input channels: 1 (grayscale CT)
+  - Output classes: 9 (background + C1-C7 + other vertebrae)
+  - Feature channels: (32, 64, 128, 256, 512)
+  - Residual units: 2 per level
+  - Normalization: Batch normalization
+  - Dropout: 0.1
+  - Total parameters: 19,236,000
+  - Trainable parameters: 19,236,000
+
+Data Configuration:
+  - Target spacing: (2.0, 1.0, 1.0) mm
+  - Target shape: (64, 256, 256) voxels
+  - Training studies: 69
+  - Validation studies: 18
+
+Training Configuration:
+  - Epochs: 300
+  - Batch size: 4
+  - Learning rate: 5e-5
+  - Weight decay: 1e-5
+  - Loss function: DiceCELoss (Dice + CrossEntropy)
+  - Optimizer: Adam
+  - Scheduler: ReduceLROnPlateau
+  - Augmentation: Enabled (p=0.5)
+
+Results:
+  - Best validation loss: 0.673497
+  - Final training loss: 0.571311
+  - Final validation loss: 0.677233
+  - Final learning rate: 0.000000
+
+Files Saved:
+  - best_unet3d_model.pth (best model weights)
+  - final_unet3d_model.pth (final epoch weights)
+  - training_checkpoint_3d.pth (full checkpoint)
+  - training_history_3d.npz (loss history)
+  - training_curves_3d.png (visualization)
+============================================================

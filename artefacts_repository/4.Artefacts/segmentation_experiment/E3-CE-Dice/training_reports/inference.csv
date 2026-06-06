@@ -1,0 +1,2 @@
+Total Inference Time (hours),Total Inference Time (second),Average GPU Memory (GB),Energy Consumed (kWh),CO2 Emissions (kg),Accuracy,Dice Score,IoU
+0.6555716052320268,2360.0577788352966,0.9794092178344727,,0.04906710624274125,0.9922390831841363,0.23115396,0.21739133

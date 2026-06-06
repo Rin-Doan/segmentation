@@ -1,0 +1,42 @@
+# Python virtual environment
+.venv/
+venv/
+env/
+
+# Byte-compiled / caches
+__pycache__/
+*.py[cod]
+*$py.class
+.ipynb_checkpoints/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+# Model weights / checkpoints (too large for GitHub, >100MB limit)
+*.pth
+*.pt
+*.ckpt
+*.onnx
+*.safetensors
+
+# Large data formats
+*.nii
+*.nii.gz
+*.dcm
+*.h5
+*.hdf5
+
+# HPC / SLURM job logs
+*.out
+*.err
+
+# Carbon tracking / emissions
+*.lock.tmp
+
+# OS / editor
+.DS_Store
+Thumbs.db
+*.swp
+
+# Local environment files
+.env

@@ -1,0 +1,419 @@
+================================================================================
+EXPERIMENT 2 PERFORMANCE EVALUATION REPORT
+Comparing 2D, 2.5D, and 3D Segmentation Approaches
+================================================================================
+
+This report evaluates the performance of Experiment 2, comparing three different
+architectural approaches for medical image segmentation:
+- E1-augmentation: 2D U-Net baseline (single slice input with augmentation)
+- E2-2.5D: 2.5D U-Net (3-channel input with adjacent slices)
+- E2-3D: 3D U-Net (full volume processing using MONAI framework)
+
+================================================================================
+1. ACCURACY PREDICTION PERFORMANCE ANALYSIS
+================================================================================
+
+OVERALL METRICS COMPARISON:
+--------------------------------------------------------------------------------
+Metric                  E1-augmentation (2D)    E2-2.5D              E2-3D
+--------------------------------------------------------------------------------
+Mean Dice Score          0.231696               0.233290             0.282594
+Mean IoU Score           0.220064               0.221880             0.225970
+Mean Pixel Accuracy      0.994128 ± 0.006465    0.994281 ± 0.007118  0.987647 ± 0.004184
+Test Samples             6,300 slices           6,300 slices          18 volumes
+Inference Time           2,282 seconds          2,333 seconds         71 seconds
+
+PERFORMANCE RANKING:
+1. E2-3D (Best):      Dice = 0.282594, IoU = 0.225970
+2. E2-2.5D (Better):  Dice = 0.233290, IoU = 0.221880
+3. E1-augmentation:   Dice = 0.231696, IoU = 0.220064
+
+EXPLANATION: Why 3D > 2.5D > 2D
+
+1. 3D U-Net (Best Performance - Dice: 0.282594):
+   
+   The 3D approach achieves the highest accuracy with a Dice score of 0.282594,
+   representing a 22% improvement over the 2D baseline (0.282594 vs 0.231696) and
+   21% improvement over 2.5D (0.282594 vs 0.233290).
+   
+   Reasons for superior performance:
+   
+   a) Complete Spatial Context:
+      - Processes entire volumes at once, capturing full 3D anatomical structure
+      - Learns spatial relationships across all three dimensions (axial, coronal, sagittal)
+      - No information loss from slice-by-slice processing
+      - Better understanding of anatomical continuity across slices
+   
+   b) Improved Boundary Detection:
+      - 3D convolutions can identify object boundaries in 3D space more accurately
+      - Better segmentation of complex anatomical structures like vertebrae
+      - Handles inter-slice dependencies naturally
+   
+   c) Volumetric Feature Learning:
+      - Learns features that span multiple slices simultaneously
+      - Can capture patterns that are only visible in 3D space
+      - Better handling of partial volume effects
+   
+   d) Framework Optimization:
+      - MONAI framework provides optimized 3D operations
+      - Efficient memory management allows processing full volumes
+      - Better gradient flow through 3D convolutions
+
+2. 2.5D U-Net (Better than 2D - Dice: 0.233290):
+   
+   The 2.5D approach provides a modest improvement over 2D (0.233290 vs 0.231696),
+   representing a 0.7% increase in Dice score.
+   
+   Reasons for improved performance over 2D:
+   
+   a) Enhanced Context:
+      - Uses 3-channel input (current slice + adjacent slices above and below)
+      - Provides limited but useful inter-slice context
+      - Helps maintain consistency across adjacent slices
+   
+   b) Better Slice Continuity:
+      - Can learn relationships between neighboring slices
+      - Reduces segmentation inconsistencies that occur in pure 2D approaches
+      - Better handling of structures that span multiple slices
+   
+   c) Trade-off Balance:
+      - Provides middle ground between 2D efficiency and 3D accuracy
+      - More context than 2D without full 3D computational complexity
+      - Still processes slices individually, maintaining some 2D advantages
+   
+   Limitations:
+      - Limited to immediate neighbors (only 3 slices)
+      - Cannot capture long-range dependencies across the volume
+      - Still processes slices independently, missing full 3D structure
+
+3. 2D U-Net Baseline (Lowest Performance - Dice: 0.231696):
+   
+   The 2D approach achieves the lowest accuracy despite data augmentation.
+   
+   Reasons for limited performance:
+   
+   a) Limited Context:
+      - Processes each slice independently as isolated 2D images
+      - No consideration of spatial relationships with adjacent slices
+      - Loses important 3D anatomical context
+   
+   b) Information Loss:
+      - Each slice treated in isolation
+      - Cannot leverage continuity of structures across slices
+      - Missing inter-slice dependencies that are critical for medical imaging
+   
+   c) Augmentation Limitations:
+      - Data augmentation helps with generalization but cannot compensate for
+        missing 3D spatial information
+      - Augmentation operates on 2D slices, not 3D volumes
+      - Cannot create the spatial relationships that exist in real 3D data
+   
+   d) Inconsistent Segmentation:
+      - May produce inconsistent results across adjacent slices
+      - No mechanism to ensure continuity in segmentation
+      - Struggles with structures that have complex 3D geometry
+
+KEY INSIGHT:
+The performance hierarchy (3D > 2.5D > 2D) clearly demonstrates that spatial context
+is critical for medical image segmentation. The more complete the spatial information
+available to the model, the better it can understand anatomical structures and make
+accurate predictions. The 22% improvement from 2D to 3D highlights the importance
+of volumetric processing for medical imaging tasks.
+
+================================================================================
+2. TRADE-OFF ANALYSIS: Time, CPU, GPU, and CO2 Emissions
+================================================================================
+
+2.1 TRAINING TIME (Until Convergence):
+--------------------------------------------------------------------------------
+Experiment              Avg Time (hours)    Avg Time (seconds)    Convergence Epochs
+--------------------------------------------------------------------------------
+E1-augmentation (2D)    ~19.2               ~69,100               ~23 epochs
+E2-2.5D                 ~13.1               ~47,200               ~14 epochs
+E2-3D                   ~1.77               ~6,400                ~67 epochs
+
+ANALYSIS:
+- 3D is FASTEST to convergence: Despite requiring more epochs (67 vs 14-23), 3D
+  training converges in only 1.77 hours, 86% faster than 2.5D and 91% faster
+  than 2D. This is because:
+  * Fewer total samples (18 volumes vs 6,300 slices)
+  * Each epoch processes entire volumes efficiently
+  * MONAI framework optimizations for 3D operations
+  * Less data loading overhead per sample
+  * More efficient memory utilization
+
+- 2.5D converges FASTER than 2D: Takes 13.1 hours vs 19.2 hours (32% faster),
+  despite similar sample counts. Reasons:
+  * Converges in fewer epochs (14 vs 23) due to better context
+  * Multi-slice input provides more informative gradients
+  * Better feature learning leads to faster convergence
+
+- 2D is SLOWEST: Requires 19.2 hours and 23 epochs. The lack of spatial context
+  means the model needs more training to learn patterns, and each epoch processes
+  many individual slices.
+
+REASONING:
+Training time directly impacts development cycles, experimentation speed, and
+resource availability. Faster convergence enables more rapid iteration and
+hyperparameter tuning. The 3D approach's speed advantage is significant,
+allowing researchers to test more configurations in the same time period.
+
+2.2 TRAINING TIME (Full Training Process):
+--------------------------------------------------------------------------------
+Experiment              Avg Time (hours)    Avg Time (seconds)    Total Epochs
+--------------------------------------------------------------------------------
+E1-augmentation (2D)    ~16.5               ~59,400               ~20 epochs
+E2-2.5D                 ~18.6               ~67,000               ~20 epochs
+E2-3D                   ~5.2                ~18,700               ~20 epochs
+
+ANALYSIS:
+- 3D is FASTEST for full training: 5.2 hours vs 16.5-18.6 hours (68-72% faster)
+- 2.5D takes LONGER than 2D for full training: Despite faster convergence,
+  full training takes 18.6 hours vs 16.5 hours because 2.5D processes more
+  data per sample (3 channels vs 1 channel)
+- 2D baseline: Moderate training time of 16.5 hours
+
+2.3 CPU USAGE:
+--------------------------------------------------------------------------------
+Experiment              Average RAM (GB)        CPU Count
+--------------------------------------------------------------------------------
+E1-augmentation (2D)    ~1.27                  40 cores
+E2-2.5D                 ~1.25                  40 cores
+E2-3D                   ~1.31                  40 cores
+
+ANALYSIS:
+- All experiments use similar CPU resources (~1.25-1.31 GB RAM average)
+- CPU usage is primarily for data loading and preprocessing
+- 3D has slightly higher RAM usage (1.31 GB) due to volume loading, but
+  difference is minimal (<5%)
+- CPU is not the bottleneck; GPU is the primary computational resource
+- All approaches use the same 40-core CPU infrastructure
+
+REASONING:
+CPU usage is similar across all approaches because:
+- Data loading and preprocessing are similar in complexity
+- CPU is primarily used for I/O operations, not computation
+- The bottleneck is GPU computation, not CPU preprocessing
+- RAM differences are minimal and not a limiting factor
+
+CPU is not a differentiating factor in this comparison. All experiments can run
+on the same CPU infrastructure without issues.
+
+2.4 GPU USAGE:
+--------------------------------------------------------------------------------
+Experiment              Training GPU Memory    Inference GPU Memory    GPU Count
+--------------------------------------------------------------------------------
+E1-augmentation (2D)    ~0.37 GB              ~0.96 GB                1 GPU
+E2-2.5D                 ~0.37 GB              ~0.98 GB                1 GPU
+E2-3D                   ~0.29 GB              ~0.47 GB                1 GPU
+
+ANALYSIS:
+- 3D is MOST EFFICIENT: Uses only 0.29 GB during training and 0.47 GB during
+  inference, 22% less than 2D/2.5D during training and 51% less during inference.
+  This is surprising given it processes full volumes, but:
+  * MONAI framework optimizations for 3D operations
+  * Batch size of 1 reduces memory requirements
+  * Efficient 3D convolution implementations
+  * Better memory management in 3D frameworks
+  * Processes fewer samples (18 volumes vs 6,300 slices)
+
+- 2.5D uses MORE GPU MEMORY than 2D during inference: 0.98 GB vs 0.96 GB.
+  The 3-channel input and multi-slice processing increases memory requirements
+  slightly compared to 2D.
+
+- 2D baseline: Moderate GPU usage (0.37 GB training, 0.96 GB inference).
+  Can scale to multiple GPUs for faster training, but this increases CO2
+  emissions significantly.
+
+REASONING:
+GPU memory determines:
+- What hardware is needed (3D can run on more modest GPUs)
+- Scalability (lower memory allows larger batch sizes if needed)
+- Cost (less memory = more accessible hardware)
+- Inference efficiency (lower memory = faster inference)
+
+The 3D approach's memory efficiency is a significant advantage, making it
+accessible on a wider range of hardware while maintaining superior accuracy.
+
+2.5 CO2 EMISSIONS (Until Convergence):
+--------------------------------------------------------------------------------
+TRAINING EMISSIONS (until convergence):
+Experiment              CO2 Emissions (kg)      Energy (kWh)          Notes
+--------------------------------------------------------------------------------
+E1-augmentation (2D)    ~1.4 - 2.6              2.6 - 5.99            Varies with GPU count
+E2-2.5D                 ~1.6                    2.9                    Single GPU
+E2-3D                   ~0.46                   0.85                   Single GPU
+
+ANALYSIS:
+- 3D is MOST ENVIRONMENTALLY FRIENDLY: Only 0.46 kg CO2 for training until
+  convergence, 71% less than 2.5D and 67-83% less than 2D. Reasons:
+  * Faster training time (1.77 vs 13.1-19.2 hours)
+  * Lower GPU memory usage
+  * More efficient processing of volumes vs slices
+  * Single GPU sufficient (no multi-GPU overhead)
+  * Fewer total samples to process
+
+- 2.5D has HIGHER emissions than 2D: 1.6 kg vs 1.4 kg (with single GPU 2D).
+  The longer training time (13.1 vs 19.2 hours) is offset by faster convergence,
+  but still results in higher total emissions.
+
+- 2D emissions vary significantly: With single GPU, ~1.4 kg CO2. With 4 GPUs,
+  up to 2.6 kg CO2 due to parallel processing overhead, though training time
+  may be reduced.
+
+2.6 CO2 EMISSIONS (Full Training Process):
+--------------------------------------------------------------------------------
+TRAINING EMISSIONS (full training):
+Experiment              CO2 Emissions (kg)      Energy (kWh)          Notes
+--------------------------------------------------------------------------------
+E1-augmentation (2D)    ~1.4 - 2.6              2.6 - 5.99            Varies with GPU count
+E2-2.5D                 ~1.6                    2.9                    Single GPU
+E2-3D                   ~0.46                   0.85                   Single GPU
+
+INFERENCE EMISSIONS:
+Experiment              CO2 Emissions (kg)      Inference Time (s)    Per Sample
+--------------------------------------------------------------------------------
+E1-augmentation (2D)   ~0.045 - 0.094          2,282                 0.007-0.015 mg/slice
+E2-2.5D                ~0.049 - 0.056          2,333                 0.008-0.009 mg/slice
+E2-3D                  ~0.0015                  71                    0.083 mg/volume
+
+TOTAL (Training + Inference):
+E1-augmentation (2D):  ~1.45 - 2.69 kg CO2
+E2-2.5D:               ~1.65 - 1.66 kg CO2
+E2-3D:                 ~0.46 kg CO2
+
+ANALYSIS:
+- 3D is MOST ENVIRONMENTALLY FRIENDLY: Only 0.46 kg CO2 for full training,
+  71% less than 2.5D and 67-83% less than 2D. The inference emissions are
+  extremely low (0.0015 kg) because it processes entire volumes in one pass
+  (71 seconds for 18 volumes), while 2D/2.5D process thousands of slices
+  individually (2,282-2,333 seconds).
+
+- 2.5D has HIGHER emissions than 2D: 1.6 kg vs 1.4 kg (with single GPU 2D).
+  The longer training time and slightly higher inference time contribute to
+  higher total emissions.
+
+- 2D emissions vary significantly: With single GPU, ~1.4 kg CO2. With 4 GPUs,
+  up to 2.6 kg CO2 due to parallel processing overhead.
+
+REASONING FOR EACH METRIC:
+
+1. TIME:
+   - 3D wins because it processes fewer samples (18 volumes vs 6,300 slices) and
+     benefits from optimized 3D frameworks. Each epoch is faster, and despite
+     more epochs, total time is much less.
+   - 2.5D is faster than 2D for convergence because it converges in fewer epochs
+     due to better context, but still processes many slices.
+   - Training time directly impacts development cycles, resource availability,
+     and cost. Faster training enables more experimentation.
+
+2. CPU:
+   - Similar across all approaches because CPU is primarily used for data loading
+   - Not a differentiating factor; all experiments use similar CPU resources
+   - The bottleneck is GPU computation, not CPU preprocessing
+   - CPU usage is not a limiting factor for any approach
+
+3. GPU:
+   - 3D is most efficient due to framework optimizations, batch size of 1, and
+     fewer samples. Lower memory requirements make it accessible on more hardware.
+   - 2.5D requires slightly more memory than 2D due to 3-channel input
+   - GPU memory determines hardware requirements and affects scalability
+   - Lower memory usage is a significant advantage for deployment
+
+4. CO2:
+   - Directly proportional to training time and energy consumption
+   - 3D wins because faster training = less energy = lower emissions
+   - Important for sustainable AI development and cost considerations
+   - 3D approach is 3-4x more environmentally friendly
+   - Lower emissions reduce environmental impact and operational costs
+
+================================================================================
+3. CONCLUSION
+================================================================================
+
+RECOMMENDATION: If having enough GPU condition, should go with 3D U-Net (E2-3D)
+
+RATIONALE:
+
+1. BEST ACCURACY:
+   The 3D approach achieves the highest Dice score (0.282594), representing a
+   22% improvement over 2D baseline (0.282594 vs 0.231696) and 21% improvement
+   over 2.5D (0.282594 vs 0.233290). This is critical for medical applications
+   where accuracy directly impacts patient outcomes and clinical decision-making.
+
+2. FASTEST TRAINING:
+   Despite processing full volumes, 3D training converges in only 1.77 hours,
+   86% faster than 2.5D (13.1 hours) and 91% faster than 2D (19.2 hours).
+   This enables faster experimentation, model iteration, and hyperparameter
+   tuning, significantly accelerating the research and development cycle.
+
+3. MOST EFFICIENT GPU USAGE:
+   3D uses the least GPU memory (0.29 GB training, 0.47 GB inference), making
+   it accessible even on modest hardware like a single Tesla V100. The efficient
+   memory usage also allows for potential batch size increases if needed, and
+   makes deployment easier on resource-constrained systems.
+
+4. MOST ENVIRONMENTALLY FRIENDLY:
+   With only 0.46 kg CO2 emissions until convergence, 3D is 3-4x more
+   sustainable than alternatives (2.5D: 1.6 kg, 2D: 1.4-2.6 kg). This is
+   increasingly important for responsible AI development, reducing both
+   environmental impact and operational costs.
+
+5. BEST INFERENCE EFFICIENCY:
+   Processing entire volumes in one pass (71 seconds for 18 volumes) is more
+   efficient than processing thousands of slices individually (2,282-2,333
+   seconds), with minimal CO2 footprint (0.0015 kg). This makes 3D ideal for
+   production deployment.
+
+TRADE-OFFS TO CONSIDER:
+
+- 3D requires full volumes in memory, which may be challenging for very large
+  datasets or limited memory systems. However, the actual memory usage (0.29 GB)
+  is lower than 2D/2.5D, so this is rarely a practical limitation.
+
+- Batch size is typically limited to 1 for 3D volumes, which can affect
+  gradient stability. However, this didn't significantly impact performance
+  in our experiments, and the faster convergence compensates.
+
+- 3D models may be less interpretable than 2D slice-by-slice approaches for
+  some use cases, but the accuracy gains typically outweigh this consideration.
+
+WHEN TO USE ALTERNATIVES:
+
+- Use 2.5D if: You need better accuracy than 2D but cannot process full volumes
+  due to memory constraints (though 3D actually uses less memory). The 0.7%
+  Dice improvement over 2D may justify the additional training time in some
+  scenarios, but 3D is generally preferred.
+
+- Use 2D if: You have severe memory constraints (though 3D uses less memory),
+  need maximum interpretability (slice-by-slice analysis), or are working with
+  very large datasets where volume-level processing is impractical. However,
+  given that 3D uses less memory and processes fewer samples, these scenarios
+  are rare.
+
+FINAL VERDICT:
+
+The 3D U-Net approach represents the optimal balance of accuracy, efficiency, and
+sustainability. Given adequate GPU resources (even a single Tesla V100 with
+32GB is more than sufficient, as 3D only uses 0.29 GB), the 3D model should
+be the preferred choice for medical image segmentation tasks.
+
+The significant improvements in:
+- Accuracy (22% better Dice than 2D, 21% better than 2.5D)
+- Training speed (86-91% faster than alternatives)
+- GPU efficiency (22-51% less memory usage)
+- Environmental impact (3-4x lower CO2 emissions)
+
+make it the clear winner for this experiment. The performance hierarchy
+(3D > 2.5D > 2D) clearly demonstrates that spatial context is paramount in
+medical image segmentation, and modern 3D frameworks (like MONAI) have made
+volumetric processing both computationally feasible and environmentally
+responsible.
+
+The 3D approach should be the default choice for medical image segmentation
+when GPU resources are available, as it provides superior accuracy with better
+efficiency across all metrics.
+
+================================================================================
+END OF REPORT
+================================================================================

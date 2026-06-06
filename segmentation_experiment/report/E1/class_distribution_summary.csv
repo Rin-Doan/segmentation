@@ -1,0 +1,10 @@
+Metric,Value
+Total_Pixels,7820279808
+Background_Pixels,7612718230
+Vertebrae_Pixels,207561578
+Other_Vertebrae_Pixels,71076671
+Background_Percentage,97.34585484028757
+Vertebrae_Percentage,2.6541451597124235
+Other_Percentage,0.9088763157462716
+Imbalance_Ratio,36.676914404649594
+Background_to_Vertebrae_Ratio,"7,612,718,230 : 207,561,578"

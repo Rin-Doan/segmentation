@@ -1,0 +1,3 @@
+subset,n_study_vertebra_rows,n_fractured,n_not_fractured,pct_fractured,n_unique_studies,n_studies_any_fracture,n_studies_no_fracture
+All rows in ground_truth.csv,6727,1444,5283,21.465735,961,961,0
+intersection_with_segmentation_folder,252,72,180,28.571429,36,36,0

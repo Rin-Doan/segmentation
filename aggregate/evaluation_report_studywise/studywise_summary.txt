@@ -1,0 +1,8 @@
+studies: 17
+num_classes: 9
+pixel_accuracy_mean: 0.997400
+pixel_accuracy_std: 0.001326
+mean_dice_mean: 0.911034
+mean_dice_std: 0.048571
+mean_iou_mean: 0.849785
+mean_iou_std: 0.064393

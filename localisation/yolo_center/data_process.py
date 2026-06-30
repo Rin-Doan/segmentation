@@ -1,0 +1,435 @@
+import csv
+import os
+import numpy as np
+import torch
+from torch.utils.data import Dataset
+import nibabel as nib
+import pydicom
+from scipy.ndimage import zoom, rotate, gaussian_filter
+import warnings
+warnings.filterwarnings('ignore')
+
+NUM_CLASSES = 9  # 0: background, 1-7: C1-C7, 8: >7
+DEFAULT_FIRST_SLICE_CSV = os.path.join(os.path.dirname(__file__), "first_slices.csv")
+
+
+def load_first_slices(csv_path: str = DEFAULT_FIRST_SLICE_CSV) -> dict[str, int]:
+    """Load per-study YOLO first-slice offsets (0-indexed z-trim)."""
+    offsets: dict[str, int] = {}
+    if not os.path.isfile(csv_path):
+        print(f"Warning: first-slice CSV not found: {csv_path}")
+        return offsets
+    with open(csv_path, newline="") as f:
+        for row in csv.DictReader(f):
+            offsets[row["study_id"]] = int(row["first_slice"])
+    return offsets
+
+
+def base_study_id(study_id: str) -> str:
+    """Strip crop-mode and offline-augmentation suffixes (e.g. study_front_aug1 -> study)."""
+    if "_aug" in study_id:
+        study_id = study_id.rsplit("_aug", 1)[0]
+    for suffix in ("_front", "_center"):
+        if study_id.endswith(suffix):
+            study_id = study_id[: -len(suffix)]
+    return study_id
+
+# ============================================================================
+# 3D Data Augmentation for CT Vertebrae Segmentation
+# ============================================================================
+class Augmentation3D:
+    """
+    3D Data augmentation pipeline for CT vertebrae segmentation
+    
+    Implements anatomically-plausible 3D augmentations:
+    - Horizontal flip (bilateral symmetry)
+    - Small rotations (patient positioning)
+    - Scaling (size variation)
+    - Intensity variations (scanner differences)
+    - Gaussian noise (robustness)
+    - Gamma correction (contrast settings)
+    
+    Args:
+        p: Probability of applying augmentation (default: 0.5)
+    """
+    
+    def __init__(self, p=0.5):
+        self.p = p
+    
+    def __call__(self, image, label):
+        """
+        Apply 3D augmentation pipeline
+        
+        Args:
+            image: 3D numpy array (D, H, W), normalized to [0, 1]
+            label: 3D numpy array (D, H, W), integer class labels
+        
+        Returns:
+            Augmented image and label
+        """
+        # If p < 1.0, skip augmentation with probability (1-p)
+        if np.random.random() > self.p:
+            return image, label
+        
+        # 1. Horizontal Flip (left-right, 50% chance)
+        if np.random.random() > 0.3:
+            image = np.flip(image, axis=2).copy()  # Flip along width
+            label = np.flip(label, axis=2).copy()
+        
+        # 2. Axial Rotation (around z-axis, -10° to +10°, 50% chance)
+        if np.random.random() > 0.5:
+            angle = np.random.uniform(-10, 10)
+            # Rotate each slice in the axial plane
+            image = rotate(image, angle, axes=(1, 2), reshape=False, order=1, mode='constant', cval=0)
+            label = rotate(label, angle, axes=(1, 2), reshape=False, order=0, mode='constant', cval=0)
+        
+        # 3. Scaling (95% to 105%, 40% chance)
+        if np.random.random() > 0.6:
+            scale = np.random.uniform(0.95, 1.05)
+            original_shape = image.shape
+            image = zoom(image, scale, order=1)
+            label = zoom(label, scale, order=0)
+            # Crop/pad back to original shape to maintain consistency
+            image = crop_or_pad_to_size(image, original_shape)
+            label = crop_or_pad_to_size(label, original_shape)
+        
+        # 4. Intensity Scaling and Shifting (60% chance)
+        if np.random.random() > 0.4:
+            scale = np.random.uniform(0.9, 1.1)
+            shift = np.random.uniform(-0.1, 0.1)
+            image = image * scale + shift
+            image = np.clip(image, 0, 1)
+        
+        # 5. Gaussian Noise (40% chance)
+        if np.random.random() > 0.4:
+            noise = np.random.normal(0, 0.01, image.shape)
+            image = image + noise
+            image = np.clip(image, 0, 1)
+        
+        # 6. Gamma Correction (30% chance)
+        if np.random.random() > 0.7:
+            gamma = np.random.uniform(0.85, 1.15)
+            image = np.power(image, gamma)
+        
+        return image, label
+
+def crop_or_pad_to_size(volume, target_shape):
+    """
+    Crop or pad volume to target shape (simplified and robust version)
+    
+    Args:
+        volume: 3D numpy array (D, H, W)
+        target_shape: (D, H, W) desired shape
+    
+    Returns:
+        Volume with exact target shape
+    """
+    current_shape = np.array(volume.shape)
+    target_shape = np.array(target_shape)
+    
+    # Create output array with target shape
+    output = np.zeros(target_shape, dtype=volume.dtype)
+    
+    # Calculate crop/pad indices for each dimension
+    for dim in range(3):
+        if current_shape[dim] < target_shape[dim]:
+            # Need padding - this dimension is too small
+            pass
+        elif current_shape[dim] > target_shape[dim]:
+            # Need cropping - this dimension is too large
+            pass
+    
+    # Compute slices for source (volume) and destination (output)
+    src_slices = []
+    dst_slices = []
+    
+    for dim in range(3):
+        if current_shape[dim] >= target_shape[dim]:
+            # Crop: take center of volume
+            start = (current_shape[dim] - target_shape[dim]) // 2
+            src_slices.append(slice(start, start + target_shape[dim]))
+            dst_slices.append(slice(None))
+        else:
+            # Pad: place volume in center of output
+            start = (target_shape[dim] - current_shape[dim]) // 2
+            src_slices.append(slice(None))
+            dst_slices.append(slice(start, start + current_shape[dim]))
+    
+    # Copy data
+    output[dst_slices[0], dst_slices[1], dst_slices[2]] = \
+        volume[src_slices[0], src_slices[1], src_slices[2]]
+    
+    return output
+
+
+def front_crop_or_pad_to_size(volume, target_shape):
+    """Crop or pad to target_shape with front crop on z (axis 0).
+
+    Take slices [0:target_d] and zero-pad at the inferior end when too short.
+    H and W use the same center crop/pad as crop_or_pad_to_size.
+    """
+    current_shape = np.array(volume.shape)
+    target_shape = np.array(target_shape)
+    output = np.zeros(target_shape, dtype=volume.dtype)
+
+    src_slices = []
+    dst_slices = []
+
+    # z: front crop / end pad
+    if current_shape[0] >= target_shape[0]:
+        src_slices.append(slice(0, target_shape[0]))
+        dst_slices.append(slice(None))
+    else:
+        src_slices.append(slice(None))
+        dst_slices.append(slice(0, current_shape[0]))
+
+    # H, W: center crop / center pad
+    for dim in (1, 2):
+        if current_shape[dim] >= target_shape[dim]:
+            start = (current_shape[dim] - target_shape[dim]) // 2
+            src_slices.append(slice(start, start + target_shape[dim]))
+            dst_slices.append(slice(None))
+        else:
+            start = (target_shape[dim] - current_shape[dim]) // 2
+            src_slices.append(slice(None))
+            dst_slices.append(slice(start, start + current_shape[dim]))
+
+    output[dst_slices[0], dst_slices[1], dst_slices[2]] = \
+        volume[src_slices[0], src_slices[1], src_slices[2]]
+    return output
+
+
+# crop_or_pad_to_size center-crops on z, y, and x
+center_crop_or_pad_to_size = crop_or_pad_to_size
+CROP_MODES = ("front", "center")
+
+
+# Part 3: 3D Data Loading and Preprocessing
+class Medical3DSegmentationDataset(Dataset):
+    """
+    Dataset for 3D volumetric segmentation
+    
+    Loads full 3D volumes from DICOM series and NIfTI segmentations
+    """
+    
+    def __init__(self, study_ids, training_path, segmentation_path, 
+                 target_spacing=(2.0, 1.0, 1.0), 
+                 target_shape=(64, 256, 256),
+                 augment=False, augment_p=0.5, 
+                 n_aug_per_study=0,
+                 first_slice_csv=DEFAULT_FIRST_SLICE_CSV,
+                 dual_crop=True,
+                 transform=None):
+        """
+        Args:
+            study_ids: List of study IDs to load
+            training_path: Path to DICOM directories
+            segmentation_path: Path to NIfTI segmentation files
+            target_spacing: (z, y, x) physical spacing in mm
+            target_shape: (D, H, W) output volume shape in pixels
+            augment: Whether to apply data augmentation
+            augment_p: Probability of applying augmentation
+            n_aug_per_study: How many augmented copies to create per successful study
+            first_slice_csv: CSV with study_id,first_slice columns for z-trim
+            dual_crop: If True, emit front + center z-crop samples per study (2x base data)
+        """
+        self.study_ids = study_ids
+        self.training_path = training_path
+        self.segmentation_path = segmentation_path
+        self.first_slices = load_first_slices(first_slice_csv)
+        self._missing_slice_warned: set[str] = set()
+        self.transform = transform
+        # NOTE: target_spacing is not used here — resampling to physical spacing
+        # is handled upstream by aggregate_data.py before the NIfTI files are saved.
+        self.target_spacing = target_spacing
+        self.target_shape = target_shape
+        self.augment = augment
+        self.n_aug_per_study = n_aug_per_study
+        self.dual_crop = dual_crop
+        # Initialize augmentation pipeline if needed
+        if self.augment:
+            self.augmentor = Augmentation3D(p=augment_p)
+            print(f"  3D Data augmentation ENABLED (p={augment_p})")
+        else:
+            print(f"  3D Data augmentation DISABLED")
+
+        if self.dual_crop:
+            print("  Dual z-crop ENABLED: front + center per study")
+        else:
+            print("  Dual z-crop DISABLED: front crop only")
+        
+        # Initialize offline augmentation if needed
+        self.offline_augmentor = None
+        if self.n_aug_per_study > 0:
+            self.offline_augmentor = Augmentation3D(p=1.0)  # Always apply when creating offline copies
+            print(f"  Offline augmentation ENABLED: {n_aug_per_study} copies per study")
+        
+        self.samples = self._prepare_samples()
+        
+    def _prepare_samples(self):
+        """Prepare list of valid study samples"""
+        samples = []
+        crop_modes = CROP_MODES if self.dual_crop else ("front",)
+
+        for study_id in self.study_ids:
+            # Check both .nii.gz and .nii, because aggregation scripts may save either.
+            img_path_nii_gz = os.path.join(self.training_path, f"{study_id}.nii.gz")
+            img_path_nii = os.path.join(self.training_path, f"{study_id}.nii")
+            seg_path_nii_gz = os.path.join(self.segmentation_path, f"{study_id}.nii.gz")
+            seg_path_nii = os.path.join(self.segmentation_path, f"{study_id}.nii")
+
+            img_path = img_path_nii_gz if os.path.exists(img_path_nii_gz) else img_path_nii
+            seg_path = seg_path_nii_gz if os.path.exists(seg_path_nii_gz) else seg_path_nii
+
+            # Check if NIfTI files exist
+            if os.path.exists(img_path) and os.path.exists(seg_path):
+                for crop_mode in crop_modes:
+                    samples.append({
+                        "study_id": f"{study_id}_{crop_mode}",
+                        "base_study_id": study_id,
+                        "crop_mode": crop_mode,
+                        "img_path": img_path,
+                        "seg_path": seg_path,
+                        "is_augmented": False,
+                    })
+
+                    if self.offline_augmentor is not None and self.n_aug_per_study > 0:
+                        for k in range(self.n_aug_per_study):
+                            samples.append({
+                                "study_id": f"{study_id}_{crop_mode}_aug{k+1}",
+                                "base_study_id": study_id,
+                                "crop_mode": crop_mode,
+                                "img_path": img_path,
+                                "seg_path": seg_path,
+                                "is_augmented": True,
+                            })
+
+        copies_per_mode = 1 + self.n_aug_per_study
+        print(
+            f"Created {len(samples)} 3D volume samples from {len(self.study_ids)} studies "
+            f"({len(crop_modes)} crop mode(s) x {copies_per_mode} per mode)"
+        )
+        return samples
+    
+    def __len__(self):
+        return len(self.samples)
+    
+    def _load_dicom_volume(self, study_dir):
+        """Load entire DICOM series as 3D volume"""
+        # Find all DICOM files
+        dicom_files = []
+        for root, _, files in os.walk(study_dir):
+            for file in files:
+                if file.lower().endswith('.dcm'):
+                    dicom_files.append(os.path.join(root, file))
+        
+        # Sort by InstanceNumber
+        try:
+            dicom_meta = []
+            for dcm_path in dicom_files:
+                ds = pydicom.dcmread(dcm_path, stop_before_pixels=True, force=True)
+                instance_num = getattr(ds, 'InstanceNumber', 0)
+                dicom_meta.append((instance_num, dcm_path))
+            dicom_meta.sort(key=lambda x: x[0])
+            sorted_dicom_paths = [path for _, path in dicom_meta]
+        except Exception as e:
+            print(f"Warning: Could not sort DICOM files: {e}")
+            sorted_dicom_paths = sorted(dicom_files)
+        
+        # Load all slices
+        slices = []
+        for dcm_path in sorted_dicom_paths:
+            try:
+                ds = pydicom.dcmread(dcm_path)
+                slice_data = ds.pixel_array.astype(np.float32)
+                slices.append(slice_data)
+            except Exception as e:
+                print(f"Error loading {dcm_path}: {e}")
+                continue
+        
+        if not slices:
+            raise ValueError(f"No valid DICOM slices found in {study_dir}")
+        
+        # Stack into 3D volume (D, H, W)
+        volume = np.stack(slices, axis=0)
+        
+        return volume
+    
+    def __getitem__(self, idx):
+        sample = self.samples[idx]
+        
+        try:
+            # Load from NIfTI file
+            img_nii = nib.load(sample['img_path'])
+            image_volume = img_nii.get_fdata()
+            # NOTE: no coordinate correction here — images were saved from DICOM
+            # (already in D, H, W / axial CT convention) by aggregate_data.py.
+
+            # HU windowing and normalization
+            image_volume = np.clip(image_volume, -200, 1800)
+            image_volume = (image_volume - (-200)) / (1800 - (-200))  # Scale to [0, 1]
+            
+        except Exception as e:
+            print(f"Error loading image volume for {sample['study_id']}: {e}")
+            # Return zero volume
+            image_volume = np.zeros(self.target_shape, dtype=np.float32)
+        
+        try:
+            # Load segmentation volume
+            nii = nib.load(sample['seg_path'])
+            seg_volume = nii.get_fdata()
+
+            # NOTE: coordinate correction ([:, ::-1, ::-1].transpose(2, 1, 0)) is
+            # NOT applied here — it was already applied by load_nifti_volume() in
+            # aggregate_data.py before the NIfTI was saved, so it is baked in.
+            seg_volume = seg_volume.astype(np.int64)
+            
+            
+        except Exception as e:
+            print(f"Error loading segmentation for {sample['study_id']}: {e}")
+            seg_volume = np.zeros(self.target_shape, dtype=np.int64)
+
+        # Z-trim from first vertebra slice (same offset for image and label)
+        study_key = base_study_id(sample["study_id"])
+        first_slice = self.first_slices.get(study_key, 0)
+        if study_key not in self.first_slices and study_key not in self._missing_slice_warned:
+            print(f"Warning: no first_slice entry for {study_key}, using 0")
+            self._missing_slice_warned.add(study_key)
+        if 0 < first_slice < image_volume.shape[0]:
+            image_volume = image_volume[first_slice:]
+        if 0 < first_slice < seg_volume.shape[0]:
+            seg_volume = seg_volume[first_slice:]
+
+        # Z-crop/pad after trim: front or center; H and W always center crop/pad
+        crop_mode = sample.get("crop_mode", "front")
+        crop_fn = (
+            front_crop_or_pad_to_size
+            if crop_mode == "front"
+            else center_crop_or_pad_to_size
+        )
+        image_volume = crop_fn(image_volume, self.target_shape)
+        seg_volume = crop_fn(seg_volume, self.target_shape)
+
+        # Remap labels: keep 0-7 (background + C1-C7), group 8+ -> 8
+        seg_volume = np.where(seg_volume > 7, 8, seg_volume)
+        
+        # Apply offline augmentation if this is an augmented copy
+        if sample.get('is_augmented', False) and self.offline_augmentor is not None:
+            # Apply augmentation with p=1.0 (always apply for offline augmented copies)
+            image_volume, seg_volume = self.offline_augmentor(image_volume, seg_volume)
+        
+        # Apply online data augmentation (only during training, for non-offline-augmented samples)
+        elif self.augment and not sample.get('is_augmented', False):
+            image_volume, seg_volume = self.augmentor(image_volume, seg_volume)
+        
+        # Ensure contiguous arrays
+        image_volume = np.ascontiguousarray(image_volume)
+        seg_volume = np.ascontiguousarray(seg_volume)
+        
+        # Convert to tensors
+        # Shape: (1, D, H, W) for both image and label
+        # Note: MONAI's DiceCELoss with to_onehot_y=True requires target to have channel dim
+        image_tensor = torch.FloatTensor(image_volume).unsqueeze(0)  # Add channel dimension
+        seg_tensor = torch.LongTensor(seg_volume).unsqueeze(0)  # Add channel dimension
+        
+        return image_tensor, seg_tensor

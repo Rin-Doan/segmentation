@@ -1,2 +1,0 @@
-num_volumes,accuracy,dice_score,iou,foreground_accuracy,foreground_dice_score,foreground_iou
-17,0.998724,0.973249,0.949201,0.950294,0.947144,0.899694

@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(conda info *)",
+      "Read(//vast/s222440401/.local/lib/python3.10/site-packages/nibabel/**)",
+      "Bash(find /home/s222440401 -name \"activate\" 2>/dev/null | head -10)",
+      "Read(//home/s222440401/**)",
+      "Bash(ls /home/s222440401/project/vis_ano/ 2>/dev/null && echo \"---\" && ls /vast/s222440401/agg_data/ 2>/dev/null | head -20)",
+      "Read(//vast/s222440401/agg_data/**)",
+      "Bash(python3 -c ' *)"
+    ]
+  }
+}

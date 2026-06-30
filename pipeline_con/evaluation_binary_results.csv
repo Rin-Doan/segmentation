@@ -1,0 +1,2 @@
+num_volumes,accuracy,dice_score,iou,foreground_accuracy,foreground_dice_score,foreground_iou,acc_0_background,dice_0_background,iou_0_background,acc_1_vertebra,dice_1_vertebra,iou_1_vertebra
+17,0.994721,0.969087,0.942557,0.951777,0.940945,0.890635,0.996822,0.997230,0.994479,0.951777,0.940945,0.890635
